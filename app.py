@@ -77,7 +77,10 @@ class Handler(BaseHTTPRequestHandler):
                 for order, customer, status in rows
                 if query in order.casefold() or query in customer.casefold()
             )
-            page = PAGE.format(query=escape(query, quote=True), rows=visible_rows)
+            completion = '<p role="status">All orders shipped</p>' if all(
+                status == "Shipped" for _, _, status in rows
+            ) else ""
+            page = PAGE.format(query=escape(query, quote=True), rows=visible_rows, completion=completion)
             self.send_content(page, "text/html; charset=utf-8")
         else:
             self.send_error(404)
@@ -147,6 +150,7 @@ PAGE = """<!doctype html>
 <input id="q" name="q" value="{query}"><button>Search</button></form>
 <table><thead><tr><th>Order ID</th><th>Customer</th><th>Status</th><th>Actions</th></tr></thead>
 <tbody>{rows}</tbody></table>
+{completion}
 </main></body></html>"""
 
 STYLE = """

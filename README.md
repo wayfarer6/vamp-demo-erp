@@ -30,6 +30,8 @@ To run without a container, use Python 3.12 and run `python app.py` from this di
 
 Use a fresh download path on every run so an earlier successful report cannot be passed off as a new result. If the fixture runs on another lab endpoint, pass `--url http://host:port` before the command.
 
+The Orders page shows `All orders shipped` after every seeded order has shipped. For scratch repair verification, use this status as the local OCR outcome and verify the fresh CSV separately.
+
 ### Replay against a VirtualBox browser guest
 
 Use a disposable Windows VM named `VAMP-Issue17-<name>`, with Guest Additions and a **1920×1080** guest framebuffer. Open the demo ERP in an English-language Edge window with translation and download popups dismissed. Use a fresh browser profile or an empty download directory.
