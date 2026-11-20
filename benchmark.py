@@ -42,11 +42,16 @@ def summarize(document):
     for (method, layout), group in groups.items():
         runs = list(group.values())
         token_counts = [run["vision_tokens"] for run in runs if run["vision_tokens"] is not None]
+        outcome_times = {outcome: [run["elapsed_seconds"] for run in runs if run["outcome"] == outcome]
+                         for outcome in OUTCOMES}
         comparison.append({
             "method": method,
             "layout": layout,
             "runs": len(runs),
             "median_seconds": median(run["elapsed_seconds"] for run in runs),
+            "median_seconds_by_outcome": {
+                outcome: median(times) for outcome, times in outcome_times.items() if times
+            },
             "median_vision_tokens": median(token_counts) if len(token_counts) == len(runs) else None,
             "vision_token_samples": len(token_counts),
             "outcomes": dict(Counter(run["outcome"] for run in runs)),

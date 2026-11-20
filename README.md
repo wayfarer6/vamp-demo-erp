@@ -69,6 +69,8 @@ Record each trial ID for all three methods (`screen_cua`, `fixed_rpa`, `vamp_rep
 
 Save a JSON object with `setup` and `runs`. In `setup`, include `fixture_commit`, `browser`, `guest_os`, `resolution`, and `timing_boundary`. Each item in `runs` has `trial`, `method`, `layout`, `elapsed_seconds`, `vision_tokens`, `outcome`, and `evidence` (the report or log path). Use `verified`, `blocked_before_input`, or `failed` for the outcome.
 
+Use `median_seconds_by_outcome.verified` to compare successful completion times. The overall `median_seconds` includes safe stops and failures. The outcome breakdown reports their timings separately.
+
 ```text
 python benchmark.py observations.json
 ```
