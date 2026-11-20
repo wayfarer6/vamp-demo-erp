@@ -9,6 +9,8 @@ podman run --rm -p 127.0.0.1:8080:8080 vamp-demo-erp
 
 Open [localhost:8080](http://127.0.0.1:8080). Search by order ID or customer, update a pending order to Shipped, and export the orders as CSV. For a browser running inside a VirtualBox guest, publish the port on an interface reachable from that guest and keep access limited to the lab network.
 
+The fixture was also verified with rootless Podman inside a Debian VirtualBox guest. If the test guest lacks Podman's rootless network helper, run a guest-only smoke test with `podman run --rm --network=host -e ERP_BIND=127.0.0.1 vamp-demo-erp` and open the URL from that same guest.
+
 ```sh
 curl -X POST http://127.0.0.1:8080/api/reset
 curl -d layout=v2 http://127.0.0.1:8080/api/layout

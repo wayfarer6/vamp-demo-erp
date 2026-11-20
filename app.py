@@ -4,6 +4,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from io import StringIO
 import json
 import os
+import signal
 import sqlite3
 from urllib.parse import parse_qs, urlsplit
 
@@ -152,6 +153,11 @@ button, summary, a { cursor: pointer; } details details { margin-left: 1rem; }
 """
 
 
+def stop_server(signum, frame):
+    raise SystemExit(0)
+
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, stop_server)
     with ERP((os.environ.get("ERP_BIND", "127.0.0.1"), int(os.environ.get("ERP_PORT", "8080")))) as server:
         server.serve_forever()
