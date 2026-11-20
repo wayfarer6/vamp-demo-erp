@@ -65,6 +65,16 @@ Robot writes `report.html`, `log.html` and `output.xml` under `qa/`. A pass requ
 
 The Robot log includes wall-clock seconds for each phase. The v1 phase starts at the fixture reset and ends at CSV verification. The stale replay phase includes the reset, the switch to v2, and the starting-screen check. The v2 phase starts after that check and ends at verification of the second CSV. These durations include guest navigation and local OCR. The Robot test case duration also includes preflight and process startup.
 
+### Capture a split-screen showcase
+
+On a Windows host with VirtualBox installed in its default location, use a Python environment with `robotframework`, `Pillow`, and `imageio-ffmpeg`. Start two disposable VirtualBox guests at 1920×1080. Run the recorder from the host while performing the showcase in the guests.
+
+```powershell
+python -m robot --outputdir capture-report --variable "TARGET_VM:<target UUID>" --variable "SCRATCH_VM:<scratch UUID>" --variable "VIDEO:capture-en.mp4" --variable "LANGUAGE:en" --variable "STOP_FILE:capture-en.stop" record-erp-showcase-guests.robot
+```
+
+The recorder saves a 2560×1440 MP4 and a JSON receipt. Use `LANGUAGE:ko` and distinct paths for the Korean edition. To end a take before the default 480-second limit, create the previously unused stop file from a second terminal. For a transcript pane, supply `--variable "TRANSCRIPT:<dedicated demo JSONL path>"` and use a transcript containing only material approved for publication.
+
 ### Compare replay methods
 
 Generate an observation sheet with a row for each trial, method, and layout. Reset the same fixture before each run. Start timing after setup, and stop when the new CSV is verified or execution stops. Keep repair runs separate. Record provider-reported vision token usage, or use `null` when it is unavailable.
