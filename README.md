@@ -18,3 +18,12 @@ curl -o orders.csv http://127.0.0.1:8080/orders.csv
 Reset restores the original three orders and v1 layout. Switching to v2 preserves orders but moves **Update Status** into **Actions → Fulfillment** and changes its selectors. Reset before each demonstration so both layouts start with identical data.
 
 To run without a container, use Python 3.12 and run `python app.py` from this directory.
+
+## Repeatable replay and repair fixture
+
+1. Run `python scenario.py reset` before replay. The ERP starts in v1 with two pending orders.
+2. In the guest browser, ship both pending orders and download the CSV. Run `python scenario.py verify-csv <downloaded-file>` against that artifact.
+3. Run `python scenario.py reset` followed by `python scenario.py layout v2`. Run the original replay against the relocated action and retain its failure result.
+4. After repairing and reviewing the replay, reset and select v2 again. Run the revised replay and verify the freshly downloaded CSV.
+
+Use a fresh download path on every run so an earlier successful report cannot be passed off as a new result. If the fixture runs on another lab endpoint, pass `--url http://host:port` before the command.
