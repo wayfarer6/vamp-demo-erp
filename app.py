@@ -1,11 +1,12 @@
 import csv
 from html import escape
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import StringIO
 import json
 import os
 import signal
 import sqlite3
+from threading import RLock
 from urllib.parse import parse_qs, urlsplit
 
 
@@ -16,22 +17,28 @@ SEED = (
 )
 
 
-class ERP(HTTPServer):
+class ERP(ThreadingHTTPServer):
     def __init__(self, address):
         super().__init__(address, Handler)
-        self.orders = sqlite3.connect(":memory:")
+        self.lock = RLock()
+        self.orders = sqlite3.connect(":memory:", check_same_thread=False)
         self.orders.execute("CREATE TABLE orders (id TEXT PRIMARY KEY, customer TEXT, status TEXT)")
         self.reset()
 
     def reset(self):
-        with self.orders:
+        with self.lock, self.orders:
             self.orders.execute("DELETE FROM orders")
             self.orders.executemany("INSERT INTO orders VALUES (?, ?, ?)", SEED)
-        self.layout = "v1"
+            self.layout = "v1"
+
+    def snapshot(self):
+        with self.lock:
+            return self.layout, list(self.orders.execute("SELECT * FROM orders ORDER BY id"))
 
     def server_close(self):
-        self.orders.close()
         super().server_close()
+        with self.lock:
+            self.orders.close()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -58,14 +65,15 @@ class Handler(BaseHTTPRequestHandler):
             output = StringIO(newline="")
             writer = csv.writer(output)
             writer.writerow(("Order ID", "Customer", "Status"))
-            writer.writerows(self.server.orders.execute("SELECT * FROM orders ORDER BY id"))
+            _, rows = self.server.snapshot()
+            writer.writerows(rows)
             self.send_content(output.getvalue(), "text/csv; charset=utf-8",
                               Content_Disposition='attachment; filename="orders.csv"')
         elif route.path == "/":
             query = parse_qs(route.query).get("q", [""])[0][:120].strip().casefold()
-            rows = self.server.orders.execute("SELECT * FROM orders ORDER BY id")
+            layout, rows = self.server.snapshot()
             visible_rows = "".join(
-                self.order_row(order, customer, status)
+                self.order_row(order, customer, status, layout)
                 for order, customer, status in rows
                 if query in order.casefold() or query in customer.casefold()
             )
@@ -88,7 +96,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if route.path == "/api/reset":
             self.server.reset()
-            self.json_response(status="reset", layout=self.server.layout)
+            self.json_response(status="reset", layout="v1")
             return
         if route.path not in {"/api/layout", "/orders/ship"}:
             self.send_error(404)
@@ -103,11 +111,12 @@ class Handler(BaseHTTPRequestHandler):
             if layout not in {"v1", "v2"}:
                 self.send_error(400, "Choose v1 or v2.")
                 return
-            self.server.layout = layout
+            with self.server.lock:
+                self.server.layout = layout
             self.json_response(layout=layout)
             return
         order = fields.get("id", [""])[0]
-        with self.server.orders:
+        with self.server.lock, self.server.orders:
             result = self.server.orders.execute(
                 "UPDATE orders SET status = 'Shipped' WHERE id = ?", (order,))
         if result.rowcount == 0:
@@ -115,11 +124,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         self.send_content("", "text/plain", status=303, Location="/")
 
-    def order_row(self, order, customer, status):
+    def order_row(self, order, customer, status, layout):
         key = escape(order, quote=True)
         action = ""
         if status == "Pending":
-            layout = self.server.layout
             action = (
                 f'<form method="post" action="/orders/ship">'
                 f'<input type="hidden" name="id" value="{key}">'
