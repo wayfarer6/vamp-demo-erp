@@ -59,7 +59,7 @@ For a Robot Framework report, set the following environment variables in the sam
 python -m robot --outputdir qa virtualbox_demo.robot
 ```
 
-Robot writes `report.html`, `log.html` and `output.xml` under `qa/`. A pass requires both verified downloads with the same SHA-256 and zero actions from the outdated replay against v2. The suite exercises the scripted fixture. The manual VSIX and AI chat walkthrough is tracked in [VAMP #19](https://github.com/wayfarer6/vamp-mcp/issues/19).
+Robot writes `report.html`, `log.html` and `output.xml` under `qa/`. A pass requires both verified downloads with the same SHA-256 and zero actions from the outdated replay against v2. The suite exercises the scripted fixture. The [Codex and VAMP MCP showcase](https://github.com/wayfarer6/vamp-mcp/issues/17) tracks the separate authoring and repair walkthrough.
 
 The Robot log includes wall-clock seconds for each phase. The v1 phase starts at the fixture reset and ends at CSV verification. The stale replay phase includes the reset, the switch to v2, and the starting-screen check. The v2 phase starts after that check and ends at verification of the second CSV. These durations include guest navigation and local OCR. The Robot test case duration also includes preflight and process startup.
 
@@ -79,6 +79,8 @@ python benchmark.py observations.json --check-evidence
 Fill in the observation sheet before running the second command. Evidence paths can be absolute or relative to the observations file. Bundle the underlying reports with the observation sheet when sharing results.
 
 The summary reports median times and outcome counts for the matched runs. If any observation in a group lacks vision-token telemetry, its aggregate token median is `null` and the summary reports how many observations supplied telemetry.
+
+The [published VirtualBox comparison](https://github.com/wayfarer6/vamp-mcp/blob/main/docs/ROADMAP.md#matched-erp-comparison) includes three trials per method and layout, the raw observations, and the browser CSVs.
 
 ### ERP fixture inside the isolated repair guest
 
