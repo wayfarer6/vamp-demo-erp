@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+from io import TextIOWrapper
 import json
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
@@ -12,6 +13,11 @@ EXPECTED_REPORT = {
     "ORD-1001": ("Bora Supply", "Shipped"),
     "ORD-1002": ("Maple Office", "Shipped"),
     "ORD-1003": ("Harbor Studio", "Shipped"),
+}
+EXPECTED_BASELINE = {
+    **EXPECTED_REPORT,
+    "ORD-1001": ("Bora Supply", "Pending"),
+    "ORD-1002": ("Maple Office", "Pending"),
 }
 
 
@@ -26,17 +32,40 @@ def change_fixture(base, route, **fields):
         return json.load(response)
 
 
-def verify_csv(report):
+def read_orders(stream):
     actual = {}
+    reader = csv.DictReader(stream)
+    if reader.fieldnames != ["Order ID", "Customer", "Status"]:
+        raise ValueError("Unexpected order report header.")
+    for row in reader:
+        order_id = row["Order ID"]
+        if not order_id or order_id in actual or None in row or None in row.values():
+            raise ValueError("The report contains a duplicate or malformed order.")
+        actual[order_id] = (row["Customer"], row["Status"])
+    return actual
+
+
+def reset_fixture(base):
+    result = change_fixture(base, "/api/reset")
+    if result != {"status": "reset", "layout": "v1"}:
+        raise ValueError("The fixture did not reset to v1.")
+    with urlopen(base.rstrip("/") + "/orders.csv", timeout=10) as response:
+        orders = read_orders(TextIOWrapper(response, encoding="utf-8-sig", newline=""))
+    if orders != EXPECTED_BASELINE:
+        raise ValueError("The fixture report does not match the reset order baseline.")
+    return result
+
+
+def switch_layout(base, layout):
+    result = change_fixture(base, "/api/layout", layout=layout)
+    if result != {"layout": layout}:
+        raise ValueError("The requested fixture layout was not confirmed.")
+    return result
+
+
+def verify_csv(report):
     with report.open(encoding="utf-8-sig", newline="") as stream:
-        reader = csv.DictReader(stream)
-        if reader.fieldnames != ["Order ID", "Customer", "Status"]:
-            raise ValueError("Unexpected order report header.")
-        for row in reader:
-            order_id = row["Order ID"]
-            if not order_id or order_id in actual or None in row:
-                raise ValueError("The report contains a duplicate or malformed order.")
-            actual[order_id] = (row["Customer"], row["Status"])
+        actual = read_orders(stream)
     if actual != EXPECTED_REPORT:
         raise ValueError("The order report does not match the expected shipped orders.")
     return {"status": "verified", "orders": len(actual), "report": str(report)}
@@ -55,13 +84,9 @@ def main():
 
     try:
         if args.command == "reset":
-            result = change_fixture(args.url, "/api/reset")
-            if result != {"status": "reset", "layout": "v1"}:
-                raise ValueError("The fixture did not reset to v1.")
+            result = reset_fixture(args.url)
         elif args.command == "layout":
-            result = change_fixture(args.url, "/api/layout", layout=args.version)
-            if result != {"layout": args.version}:
-                raise ValueError("The requested fixture layout was not confirmed.")
+            result = switch_layout(args.url, args.version)
         else:
             result = verify_csv(args.report)
     except (OSError, ValueError) as error:

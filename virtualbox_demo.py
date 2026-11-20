@@ -15,7 +15,7 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import urlopen
 from uuid import UUID
 
-from scenario import change_fixture, verify_csv
+from scenario import reset_fixture, switch_layout, verify_csv
 
 
 RESOLUTION = [1920, 1080]
@@ -145,7 +145,7 @@ async def run_demo(args):
                           **results}), flush=True)
 
     started = perf_counter()
-    change_fixture(args.host_url, "/api/reset")
+    reset_fixture(args.host_url)
     first_click = None
     for order in PENDING_ORDERS:
         await visit(order)
@@ -157,8 +157,8 @@ async def run_demo(args):
     report("v1_download_verified", started, sha256=v1_hash)
 
     started = perf_counter()
-    change_fixture(args.host_url, "/api/reset")
-    change_fixture(args.host_url, "/api/layout", layout="v2")
+    reset_fixture(args.host_url)
+    switch_layout(args.host_url, "v2")
     await visit(PENDING_ORDERS[0])
     try:
         await dispatch(first_click, start_text="Update Status")

@@ -23,7 +23,7 @@ To run without a container, use Python 3.12 and run `python app.py` from this di
 
 ## Repeatable replay and repair fixture
 
-1. Run `python scenario.py reset` before replay. The ERP starts in v1 with two pending orders.
+1. Run `python scenario.py reset` before replay. It checks the v1 reset response and verifies all three seeded orders against the baseline CSV, including the two pending orders.
 2. In the guest browser, ship both pending orders and download the CSV. Run `python scenario.py verify-csv <downloaded-file>` against that artifact.
 3. Run `python scenario.py reset` followed by `python scenario.py layout v2`. Run the original replay against the relocated action and retain its failure result.
 4. After repairing and reviewing the replay, reset and select v2 again. Run the revised replay and verify the freshly downloaded CSV.
