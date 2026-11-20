@@ -11,11 +11,23 @@ from statistics import median
 METHODS = ("screen_cua", "fixed_rpa", "vamp_replay")
 LAYOUTS = ("v1", "v2")
 OUTCOMES = ("verified", "blocked_before_input", "failed")
+SETUP_FIELDS = ("fixture_commit", "browser", "guest_os", "resolution", "timing_boundary")
+
+
+def observation_plan(trials):
+    return {
+        "setup": dict.fromkeys(SETUP_FIELDS, ""),
+        "runs": [
+            {"trial": trial, "method": method, "layout": layout, "elapsed_seconds": None,
+             "vision_tokens": None, "outcome": None, "evidence": ""}
+            for trial in trials for layout in LAYOUTS for method in METHODS
+        ],
+    }
 
 
 def summarize(document):
     setup = document["setup"]
-    for key in ("fixture_commit", "browser", "guest_os", "resolution", "timing_boundary"):
+    for key in SETUP_FIELDS:
         if not setup.get(key):
             raise ValueError(f"Missing shared setup field: {key}.")
     groups = {(method, layout): {} for method in METHODS for layout in LAYOUTS}
@@ -61,11 +73,26 @@ def summarize(document):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("observations", type=Path)
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("observations", type=Path, nargs="?")
+    inputs.add_argument("--plan", metavar="TRIAL", nargs="+",
+                        help="Print a blank matched observation sheet for these trial IDs.")
+    parser.add_argument("--check-evidence", action="store_true",
+                        help="Require each evidence path to point to a nonempty local file.")
     args = parser.parse_args()
+    if args.plan is not None:
+        if args.check_evidence or any(not trial.strip() for trial in args.plan) or len(set(args.plan)) != len(args.plan):
+            parser.error("--plan requires distinct nonempty trial IDs and cannot be used with --check-evidence.")
+        print(json.dumps(observation_plan(args.plan), indent=2, ensure_ascii=False))
+        return
     try:
         document = json.loads(args.observations.read_text(encoding="utf-8-sig"))
         summary = summarize(document)
+        if args.check_evidence:
+            for run in document["runs"]:
+                report = args.observations.parent / run["evidence"]
+                if not report.is_file() or report.stat().st_size == 0:
+                    raise ValueError(f"Missing or empty evidence for {run['trial']}/{run['method']}/{run['layout']}: {report}")
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         parser.exit(1, f"{error}\n")
     print(json.dumps(summary, indent=2, ensure_ascii=False))

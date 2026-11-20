@@ -65,15 +65,18 @@ The Robot log includes wall-clock seconds for each phase. The v1 phase starts at
 
 ### Compare replay methods
 
-Record each trial ID for all three methods (`screen_cua`, `fixed_rpa`, `vamp_replay`) in both `v1` and `v2`. Reset the same fixture before each run. Start timing after setup, and stop when the new CSV is verified or execution stops. Keep repair runs separate. Record provider-reported vision token usage, or use `null` when it is unavailable.
+Generate an observation sheet with a row for each trial, method, and layout. Reset the same fixture before each run. Start timing after setup, and stop when the new CSV is verified or execution stops. Keep repair runs separate. Record provider-reported vision token usage, or use `null` when it is unavailable.
 
 Save a JSON object with `setup` and `runs`. In `setup`, include `fixture_commit`, `browser`, `guest_os`, `resolution`, and `timing_boundary`. Each item in `runs` has `trial`, `method`, `layout`, `elapsed_seconds`, `vision_tokens`, `outcome`, and `evidence` (the report or log path). Use `verified`, `blocked_before_input`, or `failed` for the outcome.
 
 Use `median_seconds_by_outcome.verified` to compare successful completion times. The overall `median_seconds` includes safe stops and failures. The outcome breakdown reports their timings separately.
 
 ```text
-python benchmark.py observations.json
+python benchmark.py --plan trial-01 trial-02 trial-03 > observations.json
+python benchmark.py observations.json --check-evidence
 ```
+
+Fill in the observation sheet before running the second command. Evidence paths can be absolute or relative to the observations file. Bundle the underlying reports with the observation sheet when sharing results.
 
 The summary reports median times and outcome counts for the matched runs. If any observation in a group lacks vision-token telemetry, its aggregate token median is `null` and the summary reports how many observations supplied telemetry.
 
