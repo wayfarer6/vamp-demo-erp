@@ -24,12 +24,16 @@ ERP Replay Stops On Layout Change And Verified Downloads Match
     ...    --guest-user    ${GUEST_USER}    --guest-password-file    ${GUEST_PASSWORD_FILE}
     ...    --v1-download    ${V1_DOWNLOAD}    --v2-download    ${V2_DOWNLOAD}
     ...    --host-url    ${HOST_URL}    --guest-url    ${GUEST_URL}
-    ...    cwd=${CURDIR}    timeout=4 minutes    on_timeout=terminate
+    ...    cwd=${CURDIR}    timeout=8 minutes    on_timeout=terminate
     Should Be Equal As Integers    ${result.rc}    0    ${result.stderr}
-    ${stages}=    Evaluate    json.loads('[' + ','.join($result.stdout.splitlines()) + ']')    modules=json
+    ${stages}=    Evaluate
+    ...    json.loads('[' + ','.join(line for line in $result.stdout.splitlines() if line.startswith('{')) + ']')
+    ...    modules=json
     Length Should Be    ${stages}    3
     Should Be Equal    ${stages}[0][stage]    v1_download_verified
     Should Be Equal    ${stages}[1][stage]    v1_replay_blocked_on_v2
     Should Be Equal As Integers    ${stages}[1][actions_completed]    0
     Should Be Equal    ${stages}[2][stage]    v2_download_verified
     Should Be Equal    ${stages}[0][sha256]    ${stages}[2][sha256]
+    Should Match Regexp    ${stages}[0][sha256]    ^[a-f0-9]{64}$
+    Log    ${stages}

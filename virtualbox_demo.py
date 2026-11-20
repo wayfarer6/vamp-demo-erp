@@ -131,6 +131,14 @@ async def run_demo(args):
             raise ValueError("The guest download differs from the verified ERP report.")
         return actual
 
+    async def export_report(guest_path):
+        require_fresh_download(vbox, vm, args.guest_user, password_file, guest_path)
+        await click("Export CSV", 175)
+        digest = check_download(guest_path)
+        # Edge can leave its downloads flyout over the order actions.
+        await dispatch({"op": "press", "keys": ["esc"], "presses": 1, "interval": 0})
+        return digest
+
     change_fixture(args.host_url, "/api/reset")
     first_click = None
     for order in PENDING_ORDERS:
@@ -139,9 +147,7 @@ async def run_demo(args):
         if first_click is None:
             first_click = action
         await dispatch(action, {"op": "wait", "seconds": 1}, start_text="Update Status")
-    require_fresh_download(vbox, vm, args.guest_user, password_file, args.v1_download)
-    await click("Export CSV", 175)
-    v1_hash = check_download(args.v1_download)
+    v1_hash = await export_report(args.v1_download)
     print(json.dumps({"stage": "v1_download_verified", "sha256": v1_hash}), flush=True)
 
     change_fixture(args.host_url, "/api/reset")
@@ -160,9 +166,7 @@ async def run_demo(args):
         await visit(order)
         for label in ("Actions", "Fulfillment", "Update Status"):
             await click(label)
-    require_fresh_download(vbox, vm, args.guest_user, password_file, args.v2_download)
-    await click("Export CSV", 175)
-    v2_hash = check_download(args.v2_download)
+    v2_hash = await export_report(args.v2_download)
     print(json.dumps({"stage": "v2_download_verified", "sha256": v2_hash}), flush=True)
 
 
