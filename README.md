@@ -93,4 +93,12 @@ python scenario.py scratch-baseline C:/Users/Public/vamp-erp-result.csv
 python scenario.py serve-scratch
 ```
 
-Open `http://127.0.0.1:8080/` inside the guest. The fixture starts in v2. The first command creates a fresh output baseline and prints the two hashes for `VAMP_REPAIR_ARTIFACT_BASELINE_SHA256` and `VAMP_REPAIR_ARTIFACT_SHA256`. Set `VAMP_REPAIR_ARTIFACT` on the host to the guest path shown above. Have the reviewed candidate copy its newly downloaded CSV over that baseline. For each attempt, start a fresh fixture and prepare a fresh output baseline so that a previous successful export cannot satisfy the check.
+Open `http://127.0.0.1:8080/` inside the guest. The fixture starts in v2. The first command creates a fresh output baseline and prints the two hashes for `VAMP_REPAIR_ARTIFACT_BASELINE_SHA256` and `VAMP_REPAIR_ARTIFACT_SHA256`. Set `VAMP_REPAIR_ARTIFACT` on the host to the guest path shown above.
+
+Before starting the candidate, point the guest browser at an empty download directory and run the export watcher in a separate guest terminal. Adjust the download path to match the browser's settings.
+
+```powershell
+python scenario.py capture-scratch-export "$env:USERPROFILE/Downloads/orders.csv" C:/Users/Public/vamp-erp-result.csv
+```
+
+Wait for `awaiting_fresh_export`, then start the candidate. The watcher checks the completed browser download and replaces the baseline only when the CSV has the expected shipped-order bytes. VAMP independently checks the baseline and final file from the host. Reset the fixture and prepare a fresh output baseline before every attempt.

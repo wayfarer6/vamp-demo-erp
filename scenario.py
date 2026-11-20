@@ -6,6 +6,8 @@ from io import StringIO, TextIOWrapper
 import hashlib
 import json
 from pathlib import Path
+from tempfile import NamedTemporaryFile
+import time
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
@@ -73,14 +75,15 @@ def verify_csv(report):
     return {"status": "verified", "orders": len(actual), "report": str(report)}
 
 
-def prepare_scratch_artifact(report):
-    def encode_orders(orders):
-        output = StringIO(newline="")
-        rows = csv.writer(output)
-        rows.writerow(REPORT_HEADER)
-        rows.writerows((id_, *orders[id_]) for id_ in sorted(orders))
-        return output.getvalue().encode("utf-8")
+def encode_orders(orders):
+    output = StringIO(newline="")
+    rows = csv.writer(output)
+    rows.writerow(REPORT_HEADER)
+    rows.writerows((id_, *orders[id_]) for id_ in sorted(orders))
+    return output.getvalue().encode("utf-8")
 
+
+def prepare_scratch_artifact(report):
     baseline = encode_orders(EXPECTED_BASELINE)
     expected = encode_orders(EXPECTED_REPORT)
     with report.open("xb") as output:
@@ -88,6 +91,44 @@ def prepare_scratch_artifact(report):
     return {"status": "scratch_artifact_prepared", "report": str(report),
             "baseline_sha256": hashlib.sha256(baseline).hexdigest(),
             "expected_sha256": hashlib.sha256(expected).hexdigest()}
+
+
+def capture_scratch_export(download, report, timeout):
+    if not 1 <= timeout <= 120:
+        raise ValueError("Set the export timeout to between 1 and 120 seconds.")
+    partial = download.with_name(download.name + ".crdownload")
+    if download.resolve() == report.resolve() or download.exists() or download.is_symlink() or partial.exists():
+        raise ValueError("Choose an unused browser CSV path distinct from the scratch report.")
+    baseline = encode_orders(EXPECTED_BASELINE)
+    expected = encode_orders(EXPECTED_REPORT)
+
+    def require_baseline():
+        if report.is_symlink() or not report.is_file() or report.read_bytes() != baseline:
+            raise ValueError("Prepare a fresh scratch report baseline before watching for an export.")
+
+    require_baseline()
+    deadline = time.monotonic() + timeout
+    print(json.dumps({"status": "awaiting_fresh_export"}), flush=True)
+    while not download.is_file() or partial.exists():
+        if time.monotonic() >= deadline:
+            raise ValueError("Timed out waiting for a fresh browser CSV.")
+        time.sleep(0.2)
+    if download.is_symlink():
+        raise ValueError("The downloaded CSV must be a regular file.")
+    with download.open("rb") as stream:
+        data = stream.read(len(expected) + 1)
+    if data != expected:
+        raise ValueError("The fresh browser CSV does not match the expected shipped-order bytes.")
+
+    require_baseline()
+    with NamedTemporaryFile(dir=report.parent, prefix=report.name + ".", delete=False) as output:
+        temporary = Path(output.name)
+    try:
+        temporary.write_bytes(data)
+        temporary.replace(report)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return {"status": "scratch_export_captured", "sha256": hashlib.sha256(data).hexdigest()}
 
 
 def serve_scratch(port):
@@ -114,6 +155,10 @@ def main():
     report.add_argument("report", type=Path)
     artifact = commands.add_parser("scratch-baseline")
     artifact.add_argument("report", type=Path)
+    export = commands.add_parser("capture-scratch-export")
+    export.add_argument("download", type=Path)
+    export.add_argument("report", type=Path)
+    export.add_argument("--timeout", type=int, default=90)
     scratch = commands.add_parser("serve-scratch")
     scratch.add_argument("--port", type=int, default=8080)
     args = parser.parse_args()
@@ -127,6 +172,8 @@ def main():
             result = verify_csv(args.report)
         elif args.command == "scratch-baseline":
             result = prepare_scratch_artifact(args.report)
+        elif args.command == "capture-scratch-export":
+            result = capture_scratch_export(args.download, args.report, args.timeout)
         else:
             serve_scratch(args.port)
             return
