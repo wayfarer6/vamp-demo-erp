@@ -62,3 +62,14 @@ python -m robot --outputdir qa virtualbox_demo.robot
 Robot writes `report.html`, `log.html` and `output.xml` under `qa/`. A pass requires both verified downloads with the same SHA-256 and zero actions from the outdated replay against v2. The suite exercises the scripted fixture. The manual VSIX and AI chat walkthrough is tracked in [VAMP #19](https://github.com/wayfarer6/vamp-mcp/issues/19).
 
 The Robot log includes wall-clock seconds for each phase. The v1 phase starts at the fixture reset and ends at CSV verification. The stale replay phase includes the reset, the switch to v2, and the starting-screen check. The v2 phase starts after that check and ends at verification of the second CSV. These durations include guest navigation and local OCR. The Robot test case duration also includes preflight and process startup.
+
+### ERP fixture inside the isolated repair guest
+
+Copy `app.py` and `scenario.py` into the disposable Windows scratch guest through VirtualBox Guest Additions before running the candidate. Use its local Python and keep the VM's network adapters and shared folders disabled.
+
+```powershell
+python scenario.py scratch-baseline C:/Users/Public/vamp-erp-result.csv
+python scenario.py serve-scratch
+```
+
+Open `http://127.0.0.1:8080/` inside the guest. The fixture starts in v2. The first command creates a fresh output baseline and prints the two hashes for `VAMP_REPAIR_ARTIFACT_BASELINE_SHA256` and `VAMP_REPAIR_ARTIFACT_SHA256`. Set `VAMP_REPAIR_ARTIFACT` on the host to the guest path shown above. Have the reviewed candidate copy its newly downloaded CSV over that baseline. For each attempt, start a fresh fixture and prepare a fresh output baseline so that a previous successful export cannot satisfy the check.

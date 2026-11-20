@@ -2,7 +2,8 @@
 
 import argparse
 import csv
-from io import TextIOWrapper
+from io import StringIO, TextIOWrapper
+import hashlib
 import json
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
@@ -19,6 +20,7 @@ EXPECTED_BASELINE = {
     "ORD-1001": ("Bora Supply", "Pending"),
     "ORD-1002": ("Maple Office", "Pending"),
 }
+REPORT_HEADER = ["Order ID", "Customer", "Status"]
 
 
 def change_fixture(base, route, **fields):
@@ -35,7 +37,7 @@ def change_fixture(base, route, **fields):
 def read_orders(stream):
     actual = {}
     reader = csv.DictReader(stream)
-    if reader.fieldnames != ["Order ID", "Customer", "Status"]:
+    if reader.fieldnames != REPORT_HEADER:
         raise ValueError("Unexpected order report header.")
     for row in reader:
         order_id = row["Order ID"]
@@ -71,6 +73,36 @@ def verify_csv(report):
     return {"status": "verified", "orders": len(actual), "report": str(report)}
 
 
+def prepare_scratch_artifact(report):
+    def encode_orders(orders):
+        output = StringIO(newline="")
+        rows = csv.writer(output)
+        rows.writerow(REPORT_HEADER)
+        rows.writerows((id_, *orders[id_]) for id_ in sorted(orders))
+        return output.getvalue().encode("utf-8")
+
+    baseline = encode_orders(EXPECTED_BASELINE)
+    expected = encode_orders(EXPECTED_REPORT)
+    with report.open("xb") as output:
+        output.write(baseline)
+    return {"status": "scratch_artifact_prepared", "report": str(report),
+            "baseline_sha256": hashlib.sha256(baseline).hexdigest(),
+            "expected_sha256": hashlib.sha256(expected).hexdigest()}
+
+
+def serve_scratch(port):
+    from app import ERP
+
+    with ERP(("127.0.0.1", port)) as fixture:
+        fixture.layout = "v2"
+        print(json.dumps({"status": "scratch_erp_ready", "layout": "v2",
+                          "url": f"http://127.0.0.1:{fixture.server_port}"}), flush=True)
+        try:
+            fixture.serve_forever()
+        except KeyboardInterrupt:
+            pass
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://127.0.0.1:8080")
@@ -80,6 +112,10 @@ def main():
     layout.add_argument("version", choices=("v1", "v2"))
     report = commands.add_parser("verify-csv")
     report.add_argument("report", type=Path)
+    artifact = commands.add_parser("scratch-baseline")
+    artifact.add_argument("report", type=Path)
+    scratch = commands.add_parser("serve-scratch")
+    scratch.add_argument("--port", type=int, default=8080)
     args = parser.parse_args()
 
     try:
@@ -87,8 +123,13 @@ def main():
             result = reset_fixture(args.url)
         elif args.command == "layout":
             result = switch_layout(args.url, args.version)
-        else:
+        elif args.command == "verify-csv":
             result = verify_csv(args.report)
+        elif args.command == "scratch-baseline":
+            result = prepare_scratch_artifact(args.report)
+        else:
+            serve_scratch(args.port)
+            return
     except (OSError, ValueError) as error:
         parser.exit(1, f"{error}\n")
     print(json.dumps(result))
