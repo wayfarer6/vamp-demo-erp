@@ -54,7 +54,7 @@ def require_fresh_download(vbox, vm, username, password_file, path, *, execute=s
         [vbox, "guestcontrol", vm, "run", f"--username={username}",
          f"--passwordfile={password_file}", f"--exe={powershell}", "--", powershell,
          "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True, encoding="utf-8", errors="replace", timeout=30,
     )
     status = result.stdout.strip() if result.returncode == 0 else ""
     if status == "VAMP_DOWNLOAD_EXISTS":
@@ -91,13 +91,27 @@ async def run_demo(args):
         suffix = "/?" + urlencode({"q": order}) if order else "/"
         await dispatch(
             {"op": "hotkey", "keys": ["ctrl", "l"]},
+            {"op": "wait", "seconds": 0.5},
             {"op": "write", "text": args.guest_url + suffix, "interval": 0.03},
+            {"op": "wait", "seconds": 0.5},
             {"op": "press", "keys": ["enter"], "presses": 1, "interval": 0},
             {"op": "wait", "seconds": 3},
             outcome_text="Export CSV",
         )
+        if order:
+            for _ in range(3):
+                lines = await screen_lines(order)
+                visible_orders = [
+                    normalized_text(line["text"]) for line in lines
+                    if float(line["confidence"]) >= 0.8 and line["xyxy"][1] >= 370
+                    and re.fullmatch(r"ORD-\d+", line["text"].strip(), re.IGNORECASE)
+                ]
+                if visible_orders == [normalized_text(order)]:
+                    return
+                await asyncio.sleep(1)
+            raise ValueError(f"The guest did not show only the requested order {order!r}.")
 
-    async def locate(label, min_y):
+    async def screen_lines(label):
         with TemporaryDirectory(prefix="vamp-erp-screen-") as folder:
             path = Path(folder) / "screen.png"
             driver = VBox(vm)
@@ -107,7 +121,10 @@ async def run_demo(args):
                 await driver.capture(path, RESOLUTION)
             finally:
                 driver.close()
-            lines = await asyncio.to_thread(recognize_start_screen, path, label)
+            return await asyncio.to_thread(recognize_start_screen, path, label)
+
+    async def locate(label, min_y):
+        lines = await screen_lines(label)
         boxes = [line["xyxy"] for line in lines if float(line["confidence"]) >= 0.8
                  and normalized_text(line["text"]) == normalized_text(label)
                  and line["xyxy"][1] >= min_y]
