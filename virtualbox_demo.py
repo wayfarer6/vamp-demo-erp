@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+from base64 import b64encode
 import hashlib
 import json
 from pathlib import Path, PureWindowsPath
@@ -38,14 +39,26 @@ def download_path(value):
 
 
 def require_fresh_download(vbox, vm, username, password_file, path, *, execute=subprocess.run):
+    powershell = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+    parent = str(path.parent).replace("'", "''")
+    name = path.name.replace("'", "''")
+    script = (
+        "$ErrorActionPreference = 'Stop'; "
+        f"$found = Get-ChildItem -LiteralPath '{parent}' -Force | "
+        f"Where-Object {{ $_.Name -ieq '{name}' }}; "
+        "if ($found) { 'VAMP_DOWNLOAD_EXISTS' } else { 'VAMP_DOWNLOAD_ABSENT' }"
+    )
+    encoded = b64encode(script.encode("utf-16-le")).decode("ascii")
     result = execute(
-        [vbox, "guestcontrol", vm, "stat", f"--username={username}",
-         f"--passwordfile={password_file}", str(path)],
+        [vbox, "guestcontrol", vm, "run", f"--username={username}",
+         f"--passwordfile={password_file}", f"--exe={powershell}", "--", powershell,
+         "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
         capture_output=True, text=True, timeout=30,
     )
-    if result.returncode == 0:
+    status = result.stdout.strip() if result.returncode == 0 else ""
+    if status == "VAMP_DOWNLOAD_EXISTS":
         raise ValueError(f"The target download already exists in the guest: {path}")
-    if not re.search(r"\bVERR_FILE_NOT_FOUND\b", result.stderr + result.stdout):
+    if status != "VAMP_DOWNLOAD_ABSENT":
         raise ValueError("Could not confirm that the guest download target is absent.")
 
 
