@@ -42,7 +42,7 @@ From the demo repository, run the script with the VAMP host Python that has the 
 python virtualbox_demo.py --vamp-repo <VAMP-checkout> --vm <disposable-VM-UUID> --guest-user <fixture-user> --guest-password-file <private-host-file> --v1-download <guest-path-to-orders.csv> --v2-download <guest-path-to-orders-(1).csv>
 ```
 
-The script drives the guest browser through the v1 controls, checks that the old action stops on v2, then locates the v2 controls with local OCR. It verifies each downloaded CSV against the fixture report.
+The script drives the guest browser through the v1 controls, checks that the old action stops on v2, then locates the v2 controls with local OCR. It checks that both absolute CSV paths inside the guest are unused before replay and checks each path again immediately before export. Each new CSV must match the fixture report.
 
 For a Robot Framework report, set the following environment variables in the same terminal and run the suite with that VAMP host Python. Use fresh guest download paths and keep the password file on the host.
 

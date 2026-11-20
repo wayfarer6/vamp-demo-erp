@@ -4,7 +4,9 @@ import argparse
 import asyncio
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
+import re
+import subprocess
 import sys
 from tempfile import TemporaryDirectory
 from urllib.parse import urlencode, urlsplit
@@ -26,12 +28,34 @@ def parse_origin(value):
     return value.rstrip("/")
 
 
+def download_path(value):
+    path = PureWindowsPath(value)
+    if (not path.is_absolute() or not re.fullmatch(r"[A-Za-z]:", path.drive)
+            or not path.name or ".." in path.parts or path.suffix.lower() != ".csv"
+            or any(char in value[2:] for char in '*?<>|":\r\n\x00')):
+        raise argparse.ArgumentTypeError("Use an absolute path to a CSV in the Windows guest.")
+    return path
+
+
+def require_fresh_download(vbox, vm, username, password_file, path, *, execute=subprocess.run):
+    result = execute(
+        [vbox, "guestcontrol", vm, "stat", f"--username={username}",
+         f"--passwordfile={password_file}", str(path)],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode == 0:
+        raise ValueError(f"The target download already exists in the guest: {path}")
+    if not re.search(r"\bVERR_FILE_NOT_FOUND\b", result.stderr + result.stdout):
+        raise ValueError("Could not confirm that the guest download target is absent.")
+
+
 async def run_demo(args):
     sys.path.insert(0, str(args.vamp_repo.resolve()))
     from backends.library.replay import (
         StartScreenBlocked, VBox, normalized_text, recognize_start_screen, replay,
     )
     from backends.library.scratch import scratch_artifact_hash, show_vm
+    from backends.virtualbox.provision import executable
 
     if urlsplit(args.host_url).hostname not in {"127.0.0.1", "localhost", "::1"}:
         raise ValueError("The host ERP fixture URL must be loopback.")
@@ -41,6 +65,9 @@ async def run_demo(args):
             or not configuration.get("name", "").startswith("VAMP-Issue17-")):
         raise ValueError("Select a running disposable VM named VAMP-Issue17-… by UUID.")
     password_file = args.guest_password_file.resolve(strict=True)
+    vbox = executable()
+    for target in (args.v1_download, args.v2_download):
+        require_fresh_download(vbox, vm, args.guest_user, password_file, target)
 
     async def dispatch(*actions, start_text=None, outcome_text=None):
         return await replay(VBox(vm), list(actions), RESOLUTION,
@@ -86,7 +113,7 @@ async def run_demo(args):
                 report.write_bytes(response.read())
             verify_csv(report)
             expected = hashlib.sha256(report.read_bytes()).hexdigest()
-        actual = scratch_artifact_hash(vm, (guest_path, args.guest_user, password_file, "", ""))
+        actual = scratch_artifact_hash(vm, (str(guest_path), args.guest_user, password_file, "", ""))
         if actual != expected:
             raise ValueError("The guest download differs from the verified ERP report.")
         return actual
@@ -99,6 +126,7 @@ async def run_demo(args):
         if first_click is None:
             first_click = action
         await dispatch(action, {"op": "wait", "seconds": 1}, start_text="Update Status")
+    require_fresh_download(vbox, vm, args.guest_user, password_file, args.v1_download)
     await click("Export CSV", 175)
     v1_hash = check_download(args.v1_download)
     print(json.dumps({"stage": "v1_download_verified", "sha256": v1_hash}), flush=True)
@@ -119,6 +147,7 @@ async def run_demo(args):
         await visit(order)
         for label in ("Actions", "Fulfillment", "Update Status"):
             await click(label)
+    require_fresh_download(vbox, vm, args.guest_user, password_file, args.v2_download)
     await click("Export CSV", 175)
     v2_hash = check_download(args.v2_download)
     print(json.dumps({"stage": "v2_download_verified", "sha256": v2_hash}), flush=True)
@@ -132,8 +161,8 @@ def main():
     parser.add_argument("--guest-url", type=parse_origin, default="http://10.0.2.2:18080")
     parser.add_argument("--guest-user", required=True)
     parser.add_argument("--guest-password-file", required=True, type=Path)
-    parser.add_argument("--v1-download", required=True)
-    parser.add_argument("--v2-download", required=True)
+    parser.add_argument("--v1-download", required=True, type=download_path)
+    parser.add_argument("--v2-download", required=True, type=download_path)
     args = parser.parse_args()
     if args.v1_download == args.v2_download:
         parser.error("Use distinct fresh guest download paths.")
