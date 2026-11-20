@@ -63,6 +63,18 @@ Robot writes `report.html`, `log.html` and `output.xml` under `qa/`. A pass requ
 
 The Robot log includes wall-clock seconds for each phase. The v1 phase starts at the fixture reset and ends at CSV verification. The stale replay phase includes the reset, the switch to v2, and the starting-screen check. The v2 phase starts after that check and ends at verification of the second CSV. These durations include guest navigation and local OCR. The Robot test case duration also includes preflight and process startup.
 
+### Compare replay methods
+
+Record each trial ID for all three methods (`screen_cua`, `fixed_rpa`, `vamp_replay`) in both `v1` and `v2`. Reset the same fixture before each run. Start timing after setup, and stop when the new CSV is verified or execution stops. Keep repair runs separate. Record provider-reported vision token usage, or use `null` when it is unavailable.
+
+Save a JSON object with `setup` and `runs`. In `setup`, include `fixture_commit`, `browser`, `guest_os`, `resolution`, and `timing_boundary`. Each item in `runs` has `trial`, `method`, `layout`, `elapsed_seconds`, `vision_tokens`, `outcome`, and `evidence` (the report or log path). Use `verified`, `blocked_before_input`, or `failed` for the outcome.
+
+```text
+python benchmark.py observations.json
+```
+
+The summary reports median times and outcome counts for the matched runs. If any observation in a group lacks vision-token telemetry, its aggregate token median is `null` and the summary reports how many observations supplied telemetry.
+
 ### ERP fixture inside the isolated repair guest
 
 Copy `app.py` and `scenario.py` into the disposable Windows scratch guest through VirtualBox Guest Additions before running the candidate. Use its local Python and keep the VM's network adapters and shared folders disabled.
