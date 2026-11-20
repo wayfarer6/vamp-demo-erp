@@ -60,3 +60,5 @@ python -m robot --outputdir qa virtualbox_demo.robot
 ```
 
 Robot writes `report.html`, `log.html` and `output.xml` under `qa/`. A pass requires both verified downloads with the same SHA-256 and zero actions from the outdated replay against v2. The suite exercises the scripted fixture. The manual VSIX and AI chat walkthrough is tracked in [VAMP #19](https://github.com/wayfarer6/vamp-mcp/issues/19).
+
+The Robot log includes wall-clock seconds for each phase. The v1 phase starts at the fixture reset and ends at CSV verification. The stale replay phase includes the reset, the switch to v2, and the starting-screen check. The v2 phase starts after that check and ends at verification of the second CSV. These durations include guest navigation and local OCR. The Robot test case duration also includes preflight and process startup.

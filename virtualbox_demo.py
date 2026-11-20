@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
+from time import perf_counter
 from urllib.parse import urlencode, urlsplit
 from urllib.request import urlopen
 from uuid import UUID
@@ -139,6 +140,11 @@ async def run_demo(args):
         await dispatch({"op": "press", "keys": ["esc"], "presses": 1, "interval": 0})
         return digest
 
+    def report(stage, started, **results):
+        print(json.dumps({"stage": stage, "elapsed_seconds": round(perf_counter() - started, 3),
+                          **results}), flush=True)
+
+    started = perf_counter()
     change_fixture(args.host_url, "/api/reset")
     first_click = None
     for order in PENDING_ORDERS:
@@ -148,8 +154,9 @@ async def run_demo(args):
             first_click = action
         await dispatch(action, {"op": "wait", "seconds": 1}, start_text="Update Status")
     v1_hash = await export_report(args.v1_download)
-    print(json.dumps({"stage": "v1_download_verified", "sha256": v1_hash}), flush=True)
+    report("v1_download_verified", started, sha256=v1_hash)
 
+    started = perf_counter()
     change_fixture(args.host_url, "/api/reset")
     change_fixture(args.host_url, "/api/layout", layout="v2")
     await visit(PENDING_ORDERS[0])
@@ -160,14 +167,15 @@ async def run_demo(args):
             raise
     else:
         raise ValueError("The v1 action was dispatched despite the layout change.")
-    print(json.dumps({"stage": "v1_replay_blocked_on_v2", "actions_completed": 0}), flush=True)
+    report("v1_replay_blocked_on_v2", started, actions_completed=0)
 
+    started = perf_counter()
     for order in PENDING_ORDERS:
         await visit(order)
         for label in ("Actions", "Fulfillment", "Update Status"):
             await click(label)
     v2_hash = await export_report(args.v2_download)
-    print(json.dumps({"stage": "v2_download_verified", "sha256": v2_hash}), flush=True)
+    report("v2_download_verified", started, sha256=v2_hash)
 
 
 def main():

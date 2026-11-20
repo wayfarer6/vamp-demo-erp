@@ -36,4 +36,7 @@ ERP Replay Stops On Layout Change And Verified Downloads Match
     Should Be Equal    ${stages}[2][stage]    v2_download_verified
     Should Be Equal    ${stages}[0][sha256]    ${stages}[2][sha256]
     Should Match Regexp    ${stages}[0][sha256]    ^[a-f0-9]{64}$
+    FOR    ${stage}    IN    @{stages}
+        Should Be True    0 <= $stage["elapsed_seconds"] < 480
+    END
     Log    ${stages}
