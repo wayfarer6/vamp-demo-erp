@@ -43,3 +43,20 @@ python virtualbox_demo.py --vamp-repo <VAMP-checkout> --vm <disposable-VM-UUID> 
 ```
 
 The script drives the guest browser through the v1 controls, checks that the old action stops on v2, then locates the v2 controls with local OCR. It verifies each downloaded CSV against the fixture report.
+
+For a Robot Framework report, set the following environment variables in the same terminal and run the suite with that VAMP host Python. Use fresh guest download paths and keep the password file on the host.
+
+| Environment variable | Value |
+| --- | --- |
+| `VAMP_DEMO_REPO` | VAMP checkout path |
+| `VAMP_DEMO_VM` | Disposable Windows VirtualBox VM UUID |
+| `VAMP_DEMO_GUEST_USER` | Guest test account |
+| `VAMP_DEMO_GUEST_PASSWORD_FILE` | Host path to the test account password file |
+| `VAMP_DEMO_V1_DOWNLOAD` and `VAMP_DEMO_V2_DOWNLOAD` | Distinct paths inside the guest for the two downloads |
+| `VAMP_DEMO_HOST_URL` and `VAMP_DEMO_GUEST_URL` | Optional fixture URLs. Defaults are the loopback and NAT URLs above. |
+
+```text
+python -m robot --outputdir qa virtualbox_demo.robot
+```
+
+Robot writes `report.html`, `log.html` and `output.xml` under `qa/`. A pass requires both verified downloads with the same SHA-256 and zero actions from the outdated replay against v2. The suite exercises the scripted fixture. The manual VSIX and AI chat walkthrough is tracked in [VAMP #19](https://github.com/wayfarer6/vamp-mcp/issues/19).
