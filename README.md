@@ -75,6 +75,8 @@ python -m robot --outputdir capture-report --variable "TARGET_VM:<target UUID>" 
 
 The recorder saves a 2560×1440 MP4 and a JSON receipt. Use `LANGUAGE:ko` and distinct paths for the Korean edition. To end a take before the default 480-second limit, create the previously unused stop file from a second terminal. For a transcript pane, supply `--variable "TRANSCRIPT:<dedicated demo JSONL path>"` and use a transcript containing only material approved for publication.
 
+For a take spanning Codex authoring and repair, also supply `--variable "REPAIR_TRANSCRIPT:<dedicated repair JSONL path>"`. The recorder adds the repair messages after the authoring messages as the files are written.
+
 ### Compare replay methods
 
 Generate an observation sheet with a row for each trial, method, and layout. Reset the same fixture before each run. Start timing after setup, and stop when the new CSV is verified or execution stops. Keep repair runs separate. Record provider-reported vision token usage, or use `null` when it is unavailable.

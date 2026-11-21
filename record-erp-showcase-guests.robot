@@ -8,6 +8,7 @@ Library          Collections
 ${SECONDS}    480
 ${FPS}        4
 ${TRANSCRIPT}    ${EMPTY}
+${REPAIR_TRANSCRIPT}    ${EMPTY}
 ${STOP_FILE}     ${EMPTY}
 
 *** Test Cases ***
@@ -18,6 +19,9 @@ Capture The Target And Isolated ERP Guests
     ...    --fps    ${FPS}    --language    ${LANGUAGE}
     IF    $TRANSCRIPT
         Append To List    ${args}    --transcript    ${TRANSCRIPT}
+    END
+    IF    $REPAIR_TRANSCRIPT
+        Append To List    ${args}    --transcript    ${REPAIR_TRANSCRIPT}
     END
     IF    $STOP_FILE
         Append To List    ${args}    --stop-file    ${STOP_FILE}

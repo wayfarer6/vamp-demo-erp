@@ -49,7 +49,7 @@ def transcript_lines(path):
             for piece in wrap(line, width=66, replace_whitespace=False, drop_whitespace=False) or [""]]
 
 
-def paint_transcript(frame, path, language):
+def paint_transcript(frame, paths, language):
     draw = ImageDraw.Draw(frame)
     draw.rectangle((1250, 0, 2559, 1439), fill="#172431")
     title = ImageFont.truetype("C:/Windows/Fonts/malgunbd.ttf", 42)
@@ -57,11 +57,12 @@ def paint_transcript(frame, path, language):
     caption = "Codex \uc2e4\ud589 \uae30\ub85d" if language == "ko" else "Codex execution transcript"
     waiting = "Codex \ucd9c\ub825 \ub300\uae30 \uc911" if language == "ko" else "Waiting for Codex output"
     draw.text((1310, 53), caption, font=title, fill="#ffffff")
-    for index, line in enumerate((transcript_lines(path) or [waiting])[-36:]):
+    messages = [line for path in paths for line in transcript_lines(path)]
+    for index, line in enumerate((messages or [waiting])[-36:]):
         draw.text((1310, 132 + index * 33), line, font=mono, fill="#e6edf3")
 
 
-def record(target, scratch, seconds, fps, language, output, transcript=None, stop_file=None):
+def record(target, scratch, seconds, fps, language, output, transcripts=(), stop_file=None):
     if target == scratch:
         raise ValueError("Choose two distinct guest UUIDs.")
     if output.exists():
@@ -74,7 +75,7 @@ def record(target, scratch, seconds, fps, language, output, transcript=None, sto
     footer = ImageFont.truetype("C:/Windows/Fonts/malgun.ttf", 32)
     frame = Image.new("RGB", QHD, "#101922")
     draw = ImageDraw.Draw(frame)
-    if transcript:
+    if transcripts:
         positions = ((32, 76), (32, 780))
         panel = (1120, 630)
         for label, (x, y) in zip(labels, positions):
@@ -99,8 +100,8 @@ def record(target, scratch, seconds, fps, language, output, transcript=None, sto
                 for index, vm in enumerate((target, scratch)):
                     shot = capture(vm, temp / f"guest-{index}.png")
                     frame.paste(shot.resize(panel, Image.Resampling.LANCZOS), positions[index])
-                if transcript:
-                    paint_transcript(frame, transcript, language)
+                if transcripts:
+                    paint_transcript(frame, transcripts, language)
                 data = frame.tobytes()
                 elapsed = int((time.monotonic() - started) * fps)
                 next_frame = min(seconds * fps, max(frame_count + 1, elapsed + 1))
@@ -125,7 +126,8 @@ def main():
     parser.add_argument("--seconds", type=int, default=480)
     parser.add_argument("--fps", type=int, default=4)
     parser.add_argument("--language", choices=LABELS, required=True)
-    parser.add_argument("--transcript", type=Path, help="Dedicated Codex exec JSONL event file.")
+    parser.add_argument("--transcript", type=Path, action="append", default=[],
+                        help="Dedicated Codex exec JSONL event file. Repeat in show order.")
     parser.add_argument("--stop-file", type=Path, help="Stop cleanly when a new marker file appears.")
     args = parser.parse_args()
     if args.seconds < 1 or not 1 <= args.fps <= 30:
