@@ -30,9 +30,11 @@ def capture(vm, path):
 
 
 def transcript_lines(path):
-    if not path.is_file():
-        return []
-    data = path.read_bytes()
+    try:
+        data = path.read_bytes()
+    except (FileNotFoundError, PermissionError):
+        # A transcript may not exist yet or be briefly locked by its writer.
+        return None
     if len(data) > 2 * 1024 * 1024:
         raise ValueError("The dedicated Codex transcript exceeds 2 MiB.")
     encoding = "utf-16" if data.startswith((bytes.fromhex("fffe"), bytes.fromhex("feff"))) else "utf-8-sig"
@@ -49,7 +51,7 @@ def transcript_lines(path):
             for piece in wrap(line, width=66, replace_whitespace=False, drop_whitespace=False) or [""]]
 
 
-def paint_transcript(frame, paths, language):
+def paint_transcript(frame, paths, language, previous):
     draw = ImageDraw.Draw(frame)
     draw.rectangle((1250, 0, 2559, 1439), fill="#172431")
     title = ImageFont.truetype("C:/Windows/Fonts/malgunbd.ttf", 42)
@@ -57,7 +59,11 @@ def paint_transcript(frame, paths, language):
     caption = "Codex \uc2e4\ud589 \uae30\ub85d" if language == "ko" else "Codex execution transcript"
     waiting = "Codex \ucd9c\ub825 \ub300\uae30 \uc911" if language == "ko" else "Waiting for Codex output"
     draw.text((1310, 53), caption, font=title, fill="#ffffff")
-    messages = [line for path in paths for line in transcript_lines(path)]
+    for path in paths:
+        lines = transcript_lines(path)
+        if lines is not None:
+            previous[path] = lines
+    messages = [line for path in paths for line in previous.get(path, ())]
     for index, line in enumerate((messages or [waiting])[-36:]):
         draw.text((1310, 132 + index * 33), line, font=mono, fill="#e6edf3")
 
@@ -90,6 +96,7 @@ def record(target, scratch, seconds, fps, language, output, transcripts=(), stop
                                          output_params=["-preset", "ultrafast", "-movflags", "+faststart"])
     writer.send(None)
     frame_count = 0
+    previous_transcripts = {}
     started = time.monotonic()
     try:
         with TemporaryDirectory(prefix="vamp-showcase-frame-") as temp:
@@ -101,7 +108,7 @@ def record(target, scratch, seconds, fps, language, output, transcripts=(), stop
                     shot = capture(vm, temp / f"guest-{index}.png")
                     frame.paste(shot.resize(panel, Image.Resampling.LANCZOS), positions[index])
                 if transcripts:
-                    paint_transcript(frame, transcripts, language)
+                    paint_transcript(frame, transcripts, language, previous_transcripts)
                 data = frame.tobytes()
                 elapsed = int((time.monotonic() - started) * fps)
                 next_frame = min(seconds * fps, max(frame_count + 1, elapsed + 1))
